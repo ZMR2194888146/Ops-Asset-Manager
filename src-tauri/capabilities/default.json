@@ -1,0 +1,12 @@
+{
+  "identifier": "default",
+  "description": "Default capabilities for RSM",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "dialog:default",
+    "fs:default",
+    "fs:allow-read-file",
+    "fs:allow-write-text-file"
+  ]
+}

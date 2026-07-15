@@ -1,0 +1,244 @@
+export type ThemeMode = "dark" | "light";
+
+export interface ThemePreset {
+  id: string;
+  name: string;
+  mode: ThemeMode;
+  // MUI palette
+  primary: string;
+  primaryLight: string;
+  primaryDark: string;
+  secondary: string;
+  background: { default: string; paper: string };
+  text: { primary: string; secondary: string };
+  divider: string;
+  success: string;
+  warning: string;
+  error: string;
+  // Terminal (xterm) colors
+  terminal: {
+    background: string;
+    foreground: string;
+    cursor: string;
+    black: string; red: string; green: string; yellow: string;
+    blue: string; magenta: string; cyan: string; white: string;
+    brightBlack: string; brightRed: string; brightGreen: string; brightYellow: string;
+    brightBlue: string; brightMagenta: string; brightCyan: string; brightWhite: string;
+  };
+}
+
+export const THEME_PRESETS: ThemePreset[] = [
+  {
+    id: "github-dark",
+    name: "GitHub Dark",
+    mode: "dark",
+    primary: "#3f8fd4",
+    primaryLight: "#6bb0e8",
+    primaryDark: "#2a6fa8",
+    secondary: "#7c5cfc",
+    background: { default: "#0d1117", paper: "#161b22" },
+    text: { primary: "#e6edf3", secondary: "#8b949e" },
+    divider: "#30363d",
+    success: "#3fb950",
+    warning: "#d29922",
+    error: "#f85149",
+    terminal: {
+      background: "#0d1117", foreground: "#e6edf3", cursor: "#e6edf3",
+      black: "#484f58", red: "#ff7b72", green: "#3fb950", yellow: "#d29922",
+      blue: "#58a6ff", magenta: "#bc8cff", cyan: "#39c5cf", white: "#b1bac4",
+      brightBlack: "#6e7681", brightRed: "#ffa198", brightGreen: "#56d364",
+      brightYellow: "#e3b341", brightBlue: "#79c0ff", brightMagenta: "#d2a8ff",
+      brightCyan: "#56d4dd", brightWhite: "#f0f6fc",
+    },
+  },
+  {
+    id: "dracula",
+    name: "Dracula",
+    mode: "dark",
+    primary: "#bd93f9",
+    primaryLight: "#caa9fa",
+    primaryDark: "#9b75d1",
+    secondary: "#ff79c6",
+    background: { default: "#282a36", paper: "#2e3140" },
+    text: { primary: "#f8f8f2", secondary: "#949cbf" },
+    divider: "#3d4252",
+    success: "#50fa7b",
+    warning: "#f1fa8c",
+    error: "#ff5555",
+    terminal: {
+      background: "#282a36", foreground: "#f8f8f2", cursor: "#f8f8f2",
+      black: "#21222c", red: "#ff5555", green: "#50fa7b", yellow: "#f1fa8c",
+      blue: "#bd93f9", magenta: "#ff79c6", cyan: "#8be9fd", white: "#f8f8f2",
+      brightBlack: "#6272a4", brightRed: "#ff6e67", brightGreen: "#5af78e",
+      brightYellow: "#f4f99d", brightBlue: "#caa9fa", brightMagenta: "#ff92d0",
+      brightCyan: "#9aedfe", brightWhite: "#ffffff",
+    },
+  },
+  {
+    id: "one-dark",
+    name: "One Dark",
+    mode: "dark",
+    primary: "#61afef",
+    primaryLight: "#7dc1f4",
+    primaryDark: "#4a91d4",
+    secondary: "#c678dd",
+    background: { default: "#1e2127", paper: "#25282f" },
+    text: { primary: "#abb2bf", secondary: "#5c6370" },
+    divider: "#3a3d44",
+    success: "#98c379",
+    warning: "#e5c07b",
+    error: "#e06c75",
+    terminal: {
+      background: "#1e2127", foreground: "#abb2bf", cursor: "#abb2bf",
+      black: "#1e2127", red: "#e06c75", green: "#98c379", yellow: "#e5c07b",
+      blue: "#61afef", magenta: "#c678dd", cyan: "#56b6c2", white: "#abb2bf",
+      brightBlack: "#5c6370", brightRed: "#e06c75", brightGreen: "#98c379",
+      brightYellow: "#e5c07b", brightBlue: "#61afef", brightMagenta: "#c678dd",
+      brightCyan: "#56b6c2", brightWhite: "#ffffff",
+    },
+  },
+  {
+    id: "monokai",
+    name: "Monokai",
+    mode: "dark",
+    primary: "#a6e22e",
+    primaryLight: "#bff55a",
+    primaryDark: "#88b81f",
+    secondary: "#ae81ff",
+    background: { default: "#1a1b1f", paper: "#222326" },
+    text: { primary: "#f8f8f2", secondary: "#929292" },
+    divider: "#38383c",
+    success: "#a6e22e",
+    warning: "#fd971f",
+    error: "#f92672",
+    terminal: {
+      background: "#1a1b1f", foreground: "#f8f8f2", cursor: "#f8f8f0",
+      black: "#1a1b1f", red: "#f92672", green: "#a6e22e", yellow: "#fd971f",
+      blue: "#66d9ef", magenta: "#ae81ff", cyan: "#a1efe4", white: "#f8f8f2",
+      brightBlack: "#75715e", brightRed: "#f92672", brightGreen: "#a6e22e",
+      brightYellow: "#fd971f", brightBlue: "#66d9ef", brightMagenta: "#ae81ff",
+      brightCyan: "#a1efe4", brightWhite: "#f9f8f5",
+    },
+  },
+  {
+    id: "nord",
+    name: "Nord",
+    mode: "dark",
+    primary: "#88c0d0",
+    primaryLight: "#a3d4e0",
+    primaryDark: "#6ba9bd",
+    secondary: "#81a1c1",
+    background: { default: "#212733", paper: "#2a3140" },
+    text: { primary: "#d8dee9", secondary: "#748096" },
+    divider: "#3b4252",
+    success: "#a3be8c",
+    warning: "#ebcb8b",
+    error: "#bf616a",
+    terminal: {
+      background: "#212733", foreground: "#d8dee9", cursor: "#d8dee9",
+      black: "#3b4252", red: "#bf616a", green: "#a3be8c", yellow: "#ebcb8b",
+      blue: "#81a1c1", magenta: "#b48ead", cyan: "#88c0d0", white: "#e5e9f0",
+      brightBlack: "#4c566a", brightRed: "#bf616a", brightGreen: "#a3be8c",
+      brightYellow: "#ebcb8b", brightBlue: "#81a1c1", brightMagenta: "#b48ead",
+      brightCyan: "#8fbcbb", brightWhite: "#eceff4",
+    },
+  },
+  {
+    id: "tokyo-night",
+    name: "Tokyo Night",
+    mode: "dark",
+    primary: "#7aa2f7",
+    primaryLight: "#9bbbf9",
+    primaryDark: "#5c84e5",
+    secondary: "#bb9af7",
+    background: { default: "#1a1b26", paper: "#21232f" },
+    text: { primary: "#c0caf5", secondary: "#6e7491" },
+    divider: "#2a2e3f",
+    success: "#9ece6a",
+    warning: "#e0af68",
+    error: "#f7768e",
+    terminal: {
+      background: "#1a1b26", foreground: "#c0caf5", cursor: "#c0caf5",
+      black: "#15161e", red: "#f7768e", green: "#9ece6a", yellow: "#e0af68",
+      blue: "#7aa2f7", magenta: "#bb9af7", cyan: "#7dcfff", white: "#a9b1d6",
+      brightBlack: "#414868", brightRed: "#f7768e", brightGreen: "#9ece6a",
+      brightYellow: "#e0af68", brightBlue: "#7aa2f7", brightMagenta: "#bb9af7",
+      brightCyan: "#7dcfff", brightWhite: "#c0caf5",
+    },
+  },
+  {
+    id: "catppuccin-mocha",
+    name: "Catppuccin Mocha",
+    mode: "dark",
+    primary: "#89b4fa",
+    primaryLight: "#a6c8ff",
+    primaryDark: "#6d9be5",
+    secondary: "#cba6f7",
+    background: { default: "#1e1e2e", paper: "#262635" },
+    text: { primary: "#cdd6f4", secondary: "#8b91b8" },
+    divider: "#313244",
+    success: "#a6e3a1",
+    warning: "#f9e2af",
+    error: "#f38ba8",
+    terminal: {
+      background: "#1e1e2e", foreground: "#cdd6f4", cursor: "#f5e0dc",
+      black: "#45475a", red: "#f38ba8", green: "#a6e3a1", yellow: "#f9e2af",
+      blue: "#89b4fa", magenta: "#f5c2e7", cyan: "#94e2d5", white: "#bac2de",
+      brightBlack: "#585b70", brightRed: "#f38ba8", brightGreen: "#a6e3a1",
+      brightYellow: "#f9e2af", brightBlue: "#89b4fa", brightMagenta: "#f5c2e7",
+      brightCyan: "#94e2d5", brightWhite: "#a6adc8",
+    },
+  },
+  {
+    id: "light-clean",
+    name: "Light Clean",
+    mode: "light",
+    primary: "#2563eb",
+    primaryLight: "#3b82f6",
+    primaryDark: "#1d4ed8",
+    secondary: "#7c3aed",
+    background: { default: "#f6f8fa", paper: "#ffffff" },
+    text: { primary: "#1f2328", secondary: "#636c76" },
+    divider: "#d0d7de",
+    success: "#1a7f37",
+    warning: "#9a6700",
+    error: "#cf222e",
+    terminal: {
+      background: "#ffffff", foreground: "#1f2328", cursor: "#1f2328",
+      black: "#1f2328", red: "#cf222e", green: "#1a7f37", yellow: "#9a6700",
+      blue: "#2563eb", magenta: "#8250df", cyan: "#0a3069", white: "#636c76",
+      brightBlack: "#57606a", brightRed: "#a40e26", brightGreen: "#2da44e",
+      brightYellow: "#bf8700", brightBlue: "#0969da", brightMagenta: "#8250df",
+      brightCyan: "#1b7c83", brightWhite: "#8c959f",
+    },
+  },
+  {
+    id: "solarized-light",
+    name: "Solarized Light",
+    mode: "light",
+    primary: "#268bd2",
+    primaryLight: "#4fa3e0",
+    primaryDark: "#1a6ba8",
+    secondary: "#6c71c4",
+    background: { default: "#fdf6e3", paper: "#f5eddc" },
+    text: { primary: "#586e75", secondary: "#93a1a1" },
+    divider: "#e8dcc6",
+    success: "#859900",
+    warning: "#b58900",
+    error: "#dc322f",
+    terminal: {
+      background: "#fdf6e3", foreground: "#586e75", cursor: "#586e75",
+      black: "#073642", red: "#dc322f", green: "#859900", yellow: "#b58900",
+      blue: "#268bd2", magenta: "#d33682", cyan: "#2aa198", white: "#eee8d5",
+      brightBlack: "#002b36", brightRed: "#cb4b16", brightGreen: "#586e75",
+      brightYellow: "#657b83", brightBlue: "#839496", brightMagenta: "#6c71c4",
+      brightCyan: "#93a1a1", brightWhite: "#fdf6e3",
+    },
+  },
+];
+
+export const DEFAULT_THEME_ID = "github-dark";
+
+export function getThemePreset(id: string): ThemePreset {
+  return THEME_PRESETS.find((t) => t.id === id) || THEME_PRESETS[0];
+}
