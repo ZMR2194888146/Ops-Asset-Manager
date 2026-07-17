@@ -58,6 +58,16 @@ async fn ssh_disconnect(
     sessions.disconnect(&session_id).await
 }
 
+#[tauri::command]
+async fn ssh_exec(
+    state: State<'_, AppState>,
+    session_id: String,
+    command: String,
+) -> Result<String, String> {
+    let mut sessions = state.sessions.lock().await;
+    sessions.exec(&session_id, &command).await
+}
+
 // --- Port Forward ---
 
 #[tauri::command]
@@ -65,15 +75,18 @@ async fn start_port_forward(
     state: State<'_, AppState>,
     session_id: String,
     forward_id: String,
+    direction: String,
     local_host: String,
     local_port: u16,
     remote_host: String,
     remote_port: u16,
 ) -> Result<(), String> {
     let mut sessions = state.sessions.lock().await;
-    sessions
-        .start_forward(&session_id, forward_id, local_host, local_port, remote_host, remote_port)
-        .await
+    if direction == "remote" {
+        sessions.start_reverse_forward(&session_id, forward_id, local_host, local_port, remote_host, remote_port).await
+    } else {
+        sessions.start_forward(&session_id, forward_id, local_host, local_port, remote_host, remote_port).await
+    }
 }
 
 #[tauri::command]
@@ -581,6 +594,7 @@ pub fn run() {
             ssh_write,
             ssh_resize,
             ssh_disconnect,
+            ssh_exec,
             start_port_forward,
             stop_port_forward,
             server_stats,

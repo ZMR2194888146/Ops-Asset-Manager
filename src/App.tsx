@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { Box } from "@mui/material";
 import { invoke } from "@tauri-apps/api/core";
+import { getCurrentWindow, LogicalSize } from "@tauri-apps/api/window";
 import { Sidebar } from "./components/Sidebar";
 import { AssetManager } from "./components/AssetManager";
 import { TerminalView } from "./components/TerminalView";
@@ -40,6 +41,40 @@ function App() {
       );
     })();
   }, [setConfigFilePath, loadConfigFromFile]);
+
+  // Restore window size from saved settings on startup
+  useEffect(() => {
+    const settings = useStore.getState().settings;
+    const win = getCurrentWindow();
+    win.setSize(new LogicalSize(settings.windowWidth, settings.windowHeight)).catch(() => {});
+  }, []);
+
+  // Save window size on resize (debounced)
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let unlisten: (() => void) | null = null;
+
+    const win = getCurrentWindow();
+    win.onResized(async () => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(async () => {
+        try {
+          const size = await win.outerSize();
+          const factor = await win.scaleFactor();
+          const w = Math.round(size.width / factor);
+          const h = Math.round(size.height / factor);
+          if (w > 0 && h > 0) {
+            useStore.getState().updateSettings({ windowWidth: w, windowHeight: h });
+          }
+        } catch {}
+      }, 500);
+    }).then((fn) => { unlisten = fn; });
+
+    return () => {
+      if (timer) clearTimeout(timer);
+      if (unlisten) unlisten();
+    };
+  }, []);
 
   // Auto-save to config file when assets change (debounced)
   useEffect(() => {

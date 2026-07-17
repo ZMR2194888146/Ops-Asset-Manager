@@ -38,6 +38,7 @@ import { open as openDialog, save as saveDialog } from "@tauri-apps/plugin-dialo
 import { readFile, writeFile } from "@tauri-apps/plugin-fs";
 import { useStore } from "../stores/store";
 import { getThemePreset } from "../theme/presets";
+import { getRemoteCwd, onRemoteCwdChange } from "../utils/terminalRegistry";
 import type { FileEntry } from "../types";
 
 function formatSize(bytes: number): string {
@@ -94,6 +95,21 @@ export function FileManager({ sessionId }: { sessionId: string }) {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId]);
+
+  // Auto-follow SFTP to terminal's CWD (tracked via cd command parsing)
+  useEffect(() => {
+    if (!sessionId) return;
+
+    // Load initial CWD if already known
+    const initial = getRemoteCwd(sessionId);
+    if (initial) loadDir(initial);
+
+    // Subscribe to CWD changes from cd commands
+    const unsubscribe = onRemoteCwdChange(sessionId, (cwd) => {
+      loadDir(cwd);
+    });
+    return unsubscribe;
+  }, [sessionId, loadDir]);
 
   const navigateTo = (path: string) => loadDir(path);
 

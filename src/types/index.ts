@@ -1,3 +1,11 @@
+/** Default port forward rule template (stored on the server asset) */
+export interface DefaultForward {
+  direction: "local" | "remote";
+  localPort: number;
+  remoteHost: string;
+  remotePort: number;
+}
+
 export interface ServerAsset {
   id: string;
   name: string;
@@ -12,6 +20,8 @@ export interface ServerAsset {
   tags?: string[];
   description?: string;
   lastConnected?: string;
+  /** Default port forward rules, auto-applied when a terminal session opens */
+  defaultForwards?: DefaultForward[];
 }
 
 export interface TerminalSession {
@@ -36,11 +46,14 @@ export interface PortForward {
   name: string;
   sessionId: string;
   serverName: string;
+  direction: "local" | "remote";
   localHost: string;
   localPort: number;
   remoteHost: string;
   remotePort: number;
   enabled: boolean;
+  /** Runtime flag: is this forward currently active */
+  running?: boolean;
 }
 
 export interface AiConfig {
@@ -102,4 +115,12 @@ export interface S3Entry {
   size: number;
   lastModified: number | null;
   isDir: boolean;
+}
+
+export interface CommandBlock {
+  id: string;
+  sessionId: string;
+  command: string;
+  timestamp: number;
+  status: "running" | "done" | "error";
 }

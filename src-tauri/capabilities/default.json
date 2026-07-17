@@ -4,6 +4,11 @@
   "windows": ["main"],
   "permissions": [
     "core:default",
+    "core:window:allow-set-size",
+    "core:window:allow-inner-size",
+    "core:window:allow-outer-size",
+    "core:window:allow-scale-factor",
+    "core:window:allow-on-resized",
     "dialog:default",
     "fs:default",
     "fs:allow-read-file",

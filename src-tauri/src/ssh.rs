@@ -1,7 +1,7 @@
 use russh::{
     client,
     keys::load_secret_key,
-    ChannelId, ChannelMsg, CryptoVec, Disconnect,
+    Channel, ChannelId, ChannelMsg, CryptoVec, Disconnect,
 };
 use russh_sftp::client::SftpSession;
 use serde::{Deserialize, Serialize};
@@ -9,6 +9,9 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use tauri::{AppHandle, Emitter};
 use tokio::sync::mpsc;
+
+/// Shared map for reverse forwards: (remote_host, remote_port) -> (local_host, local_port)
+type ReverseForwards = Arc<std::sync::Mutex<HashMap<(String, u32), (String, u16)>>>;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SshConfig {
@@ -21,7 +24,9 @@ pub struct SshConfig {
     pub private_key_passphrase: Option<String>,
 }
 
-struct Client;
+struct Client {
+    reverse_forwards: ReverseForwards,
+}
 
 #[async_trait::async_trait]
 impl client::Handler for Client {
@@ -33,13 +38,44 @@ impl client::Handler for Client {
     ) -> Result<bool, Self::Error> {
         Ok(true)
     }
+
+    async fn server_channel_open_forwarded_tcpip(
+        &mut self,
+        channel: Channel<client::Msg>,
+        connected_address: &str,
+        connected_port: u32,
+        _originator_address: &str,
+        _originator_port: u32,
+        _session: &mut client::Session,
+    ) -> Result<(), Self::Error> {
+        // Look up the local target for this reverse forward
+        let target = {
+            let map = self.reverse_forwards.lock().unwrap();
+            map.get(&(connected_address.to_string(), connected_port)).cloned()
+        };
+        if let Some((local_host, local_port)) = target {
+            tokio::spawn(async move {
+                match tokio::net::TcpStream::connect(format!("{}:{}", local_host, local_port)).await {
+                    Ok(mut local_stream) => {
+                        let mut ssh_stream = channel.into_stream();
+                        let _ = tokio::io::copy_bidirectional(&mut local_stream, &mut ssh_stream).await;
+                    }
+                    Err(e) => {
+                        log::error!("Failed to connect to local service for reverse forward: {}", e);
+                    }
+                }
+            });
+        }
+        Ok(())
+    }
 }
 
 pub struct SshSession {
-    handle: Arc<client::Handle<Client>>,
+    handle: Arc<tokio::sync::Mutex<client::Handle<Client>>>,
     channel_id: ChannelId,
     resize_tx: mpsc::Sender<(u32, u32)>,
     forward_stops: HashMap<String, Arc<tokio::sync::Notify>>,
+    reverse_forwards: ReverseForwards,
     sftp: Option<Arc<SftpSession>>,
 }
 
@@ -59,7 +95,7 @@ impl SessionManager {
         let addr = format!("{}:{}", config.host, config.port);
 
         let ssh_config = Arc::new(client::Config::default());
-        let mut handle = client::connect(ssh_config, &addr, Client {})
+        let mut handle = client::connect(ssh_config, &addr, Client { reverse_forwards: Arc::new(std::sync::Mutex::new(HashMap::new())) })
             .await
             .map_err(|e| format!("Connection failed: {}", e))?;
 
@@ -103,7 +139,8 @@ impl SessionManager {
         ssh_config.inactivity_timeout = Some(std::time::Duration::from_secs(300));
         let ssh_config = Arc::new(ssh_config);
 
-        let mut handle = client::connect(ssh_config, &addr, Client {})
+        let reverse_forwards: ReverseForwards = Arc::new(std::sync::Mutex::new(HashMap::new()));
+        let mut handle = client::connect(ssh_config, &addr, Client { reverse_forwards: reverse_forwards.clone() })
             .await
             .map_err(|e| format!("Connection failed: {}", e))?;
 
@@ -184,10 +221,11 @@ impl SessionManager {
         self.sessions.insert(
             session_id.clone(),
             SshSession {
-                handle: Arc::new(handle),
+                handle: Arc::new(tokio::sync::Mutex::new(handle)),
                 channel_id,
                 resize_tx,
                 forward_stops: HashMap::new(),
+                reverse_forwards,
                 sftp: None,
             },
         );
@@ -200,6 +238,8 @@ impl SessionManager {
         let crypto_data = CryptoVec::from(data.as_bytes().to_vec());
         session
             .handle
+            .lock()
+            .await
             .data(session.channel_id, crypto_data)
             .await
             .map_err(|e| format!("Failed to write data: {:?}", e))?;
@@ -259,7 +299,11 @@ impl SessionManager {
                                 let rp_clone = rp;
 
                                 tokio::spawn(async move {
-                                    match handle_clone.channel_open_direct_tcpip(&rh_clone, rp_clone as u32, "127.0.0.1", 0).await {
+                                    let channel_result = {
+                                        let h = handle_clone.lock().await;
+                                        h.channel_open_direct_tcpip(&rh_clone, rp_clone as u32, "127.0.0.1", 0).await
+                                    };
+                                    match channel_result {
                                         Ok(channel) => {
                                             let mut stream = channel.into_stream();
                                             let _ = tokio::io::copy_bidirectional(&mut local_stream, &mut stream).await;
@@ -284,6 +328,60 @@ impl SessionManager {
         Ok(())
     }
 
+    /// Start a reverse (remote) port forward: remote_port → local_host:local_port
+    pub async fn start_reverse_forward(
+        &mut self,
+        session_id: &str,
+        forward_id: String,
+        local_host: String,
+        local_port: u16,
+        remote_host: String,
+        remote_port: u16,
+    ) -> Result<(), String> {
+        let session = self.sessions.get_mut(session_id).ok_or("Session not found")?;
+
+        // Register the reverse mapping so the handler knows where to connect locally
+        session.reverse_forwards.lock().unwrap()
+            .insert((remote_host.clone(), remote_port as u32), (local_host.clone(), local_port));
+
+        // Register a stop notify
+        let stop = Arc::new(tokio::sync::Notify::new());
+        session.forward_stops.insert(forward_id.clone(), stop.clone());
+
+        let handle = session.handle.clone();
+        let rh = remote_host.clone();
+        let rp = remote_port;
+        let fid = forward_id.clone();
+        let reverse_map = session.reverse_forwards.clone();
+
+        tokio::spawn(async move {
+            // Request the SSH server to listen on the remote port
+            let forward_result = {
+                let mut h = handle.lock().await;
+                h.tcpip_forward(&rh, rp as u32).await
+            };
+
+            match forward_result {
+                Ok(_) => {
+                    log::info!("Reverse forward {} started: {}:{} → local", fid, rh, rp);
+                    // Wait for stop signal
+                    stop.notified().await;
+                    // Cancel the forward on the server
+                    let h = handle.lock().await;
+                    let _ = h.cancel_tcpip_forward(&rh, rp as u32).await;
+                }
+                Err(e) => {
+                    log::error!("Failed to start reverse forward {}: {}", fid, e);
+                }
+            }
+            // Clean up the mapping
+            reverse_map.lock().unwrap().remove(&(rh, rp as u32));
+            log::info!("Reverse forward {} stopped", fid);
+        });
+
+        Ok(())
+    }
+
     pub async fn stop_forward(&mut self, session_id: &str, forward_id: &str) -> Result<(), String> {
         let session = self.sessions.get_mut(session_id).ok_or("Session not found")?;
         if let Some(stop) = session.forward_stops.remove(forward_id) {
@@ -292,14 +390,18 @@ impl SessionManager {
         Ok(())
     }
 
-    /// Run a one-shot command on the existing SSH session and return stdout
+    /// Run a one-shot command on the existing SSH session and return stdout.
+    /// Only holds the handle lock briefly to open the channel, so it does NOT
+    /// block interactive terminal writes while waiting for command output.
     pub async fn exec(&mut self, session_id: &str, command: &str) -> Result<String, String> {
         let session = self.sessions.get_mut(session_id).ok_or("Session not found")?;
-        let mut channel = session
-            .handle
-            .channel_open_session()
-            .await
-            .map_err(|e| format!("Failed to open exec channel: {}", e))?;
+        // Open channel with a short-lived lock, then release before exec/wait
+        let mut channel = {
+            let h = session.handle.lock().await;
+            h.channel_open_session()
+                .await
+                .map_err(|e| format!("Failed to open exec channel: {}", e))?
+        };
         channel
             .exec(true, command)
             .await
@@ -330,6 +432,8 @@ impl SessionManager {
         }
         let channel = session
             .handle
+            .lock()
+            .await
             .channel_open_session()
             .await
             .map_err(|e| format!("Failed to open SFTP channel: {}", e))?;
@@ -468,7 +572,7 @@ impl SessionManager {
             for (_, stop) in &session.forward_stops {
                 stop.notify_waiters();
             }
-            let _ = session.handle.disconnect(Disconnect::ByApplication, "", "en").await;
+            let _ = session.handle.lock().await.disconnect(Disconnect::ByApplication, "", "en").await;
         }
         Ok(())
     }

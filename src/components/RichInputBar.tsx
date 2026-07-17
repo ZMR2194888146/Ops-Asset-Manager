@@ -30,6 +30,8 @@ import { invoke } from "@tauri-apps/api/core";
 import { useStore } from "../stores/store";
 import { getThemePreset } from "../theme/presets";
 import { getCompletions, applyCompletion, type CompletionItem } from "../utils/completion";
+import { getTerminal, writeBlockSeparator } from "../utils/terminalRegistry";
+import { generateId } from "../utils/id";
 
 interface RichInputBarProps {
   sessionId: string;
@@ -127,6 +129,18 @@ export function RichInputBar({ sessionId }: RichInputBarProps) {
 
   const sendCommand = (cmd: string) => {
     if (!cmd.trim()) return;
+    // Warp-style block separator
+    const term = getTerminal(sessionId);
+    const preset = getThemePreset(useStore.getState().settings.themeId);
+    if (term) writeBlockSeparator(term, cmd, preset.mode);
+    // Track command block
+    useStore.getState().addCommandBlock({
+      id: generateId("block"),
+      sessionId,
+      command: cmd,
+      timestamp: Date.now(),
+      status: "running",
+    });
     invoke("ssh_write", { sessionId, data: cmd + "\n" }).catch(() => {});
     setHistory((h) => [cmd, ...h.filter((c) => c !== cmd)].slice(0, 100));
     setInput("");
@@ -210,6 +224,75 @@ export function RichInputBar({ sessionId }: RichInputBarProps) {
     if (e.ctrlKey && e.key === "l") { e.preventDefault(); sendCommand("clear"); return; }
     // Ctrl+C: interrupt
     if (e.ctrlKey && e.key === "c" && input === "") { e.preventDefault(); invoke("ssh_write", { sessionId, data: "\x03" }).catch(() => {}); return; }
+
+    // Warp-style line editing shortcuts
+    if (e.ctrlKey) {
+      // Ctrl+A: move to beginning of line
+      if (e.key === "a") { e.preventDefault(); inputRef.current?.setSelectionRange(0, 0); updateCaret(); return; }
+      // Ctrl+E: move to end of line
+      if (e.key === "e") { e.preventDefault(); const len = input.length; inputRef.current?.setSelectionRange(len, len); updateCaret(); return; }
+      // Ctrl+K: delete from cursor to end of line
+      if (e.key === "k") {
+        e.preventDefault();
+        const el = inputRef.current;
+        const pos = el?.selectionStart ?? input.length;
+        const newPos = { input: input.slice(0, pos), caret: pos };
+        setInput(newPos.input); setCaretPos(newPos.caret);
+        requestAnimationFrame(() => el?.setSelectionRange(pos, pos));
+        return;
+      }
+      // Ctrl+U: delete from beginning to cursor
+      if (e.key === "u") {
+        e.preventDefault();
+        const el = inputRef.current;
+        const pos = el?.selectionStart ?? input.length;
+        setInput(input.slice(pos)); setCaretPos(0);
+        requestAnimationFrame(() => el?.setSelectionRange(0, 0));
+        return;
+      }
+      // Ctrl+W: delete previous word
+      if (e.key === "w") {
+        e.preventDefault();
+        const el = inputRef.current;
+        const pos = el?.selectionStart ?? input.length;
+        const before = input.slice(0, pos);
+        const after = input.slice(pos);
+        const trimmed = before.replace(/\s+$/, "");
+        const wordStart = trimmed.lastIndexOf(" ");
+        const newInput = (wordStart >= 0 ? trimmed.slice(0, wordStart + 1) : "") + after;
+        const newCaret = wordStart >= 0 ? wordStart + 1 : 0;
+        setInput(newInput); setCaretPos(newCaret);
+        requestAnimationFrame(() => el?.setSelectionRange(newCaret, newCaret));
+        return;
+      }
+      // Ctrl+D: delete character after cursor (or send EOF if empty)
+      if (e.key === "d") {
+        if (input === "") { e.preventDefault(); invoke("ssh_write", { sessionId, data: "\x04" }).catch(() => {}); return; }
+        e.preventDefault();
+        const el = inputRef.current;
+        const pos = el?.selectionStart ?? input.length;
+        if (pos < input.length) {
+          setInput(input.slice(0, pos) + input.slice(pos + 1));
+          setCaretPos(pos);
+          requestAnimationFrame(() => el?.setSelectionRange(pos, pos));
+        }
+        return;
+      }
+      // Ctrl+R: reverse search history
+      if (e.key === "r") {
+        e.preventDefault();
+        if (history.length > 0) { setShowHistory(true); setHistoryIdx(0); }
+        return;
+      }
+    }
+
+    // Meta (Cmd) shortcuts — Warp style
+    if (e.metaKey) {
+      // Cmd+Backspace: delete whole line
+      if (e.key === "Backspace") { e.preventDefault(); setInput(""); setCaretPos(0); return; }
+      // Cmd+Enter: send command (works even in multiline)
+      if (e.key === "Enter") { e.preventDefault(); if (isAiMode) callAi(); else sendCommand(input); return; }
+    }
   };
 
   // Apply history selection
@@ -409,7 +492,12 @@ export function RichInputBar({ sessionId }: RichInputBarProps) {
           <textarea
             ref={inputRef}
             value={input}
-            onChange={(e) => { setInput(e.target.value); updateCaret(); }}
+            onChange={(e) => {
+              setInput(e.target.value);
+              updateCaret();
+              // Auto-expand to multiline when pasting multi-line content
+              if (e.target.value.includes("\n") && !multiline) setMultiline(true);
+            }}
             onKeyDown={handleKeyDown}
             onKeyUp={updateCaret}
             onClick={updateCaret}
@@ -458,7 +546,9 @@ export function RichInputBar({ sessionId }: RichInputBarProps) {
       {/* Status line */}
       <Box sx={{ px: 1.5, pb: 0.25, display: "flex", gap: 1, alignItems: "center" }}>
         <Typography variant="caption" sx={{ fontSize: 9, color: preset.text.secondary }}>
-          {multiline ? "Multi-line · Enter=Send · Shift+Enter=Newline" : "Enter=Send · Tab=Complete · ↑=History · >=AI"}
+          {multiline
+            ? "Multi-line · ⌘↩=Send · Shift+Enter=Newline"
+            : "↵ Send · Tab Complete · ↑ History · > AI · ⌃A/E/K/W/U Edit"}
         </Typography>
       </Box>
     </Box>

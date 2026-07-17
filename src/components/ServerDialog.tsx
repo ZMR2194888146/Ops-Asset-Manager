@@ -30,12 +30,15 @@ import {
   PlagiarismRounded,
   CheckCircleRounded,
   ErrorRounded,
+  AltRouteRounded,
+  AddRounded,
+  DeleteRounded,
 } from "@mui/icons-material";
 import { invoke } from "@tauri-apps/api/core";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { useStore } from "../stores/store";
 import { generateId } from "../utils/id";
-import type { ServerAsset } from "../types";
+import type { ServerAsset, DefaultForward } from "../types";
 
 interface ServerDialogProps {
   open: boolean;
@@ -65,6 +68,9 @@ export function ServerDialog({ open, onClose, editServer }: ServerDialogProps) {
   const [tagInput, setTagInput] = useState("");
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
+  // Forward form state
+  const [fwdDir, setFwdDir] = useState<"local" | "remote">("local");
+  const [fwdForm, setFwdForm] = useState({ localPort: "", remoteHost: "127.0.0.1", remotePort: "" });
 
   useEffect(() => {
     if (editServer) {
@@ -83,10 +89,24 @@ export function ServerDialog({ open, onClose, editServer }: ServerDialogProps) {
         group: "Default",
         tags: [],
         description: "",
+        defaultForwards: [],
       });
     }
     setTab(0);
   }, [editServer, open]);
+
+  const handleAddForward = () => {
+    const lp = parseInt(fwdForm.localPort);
+    const rp = parseInt(fwdForm.remotePort);
+    if (!lp || !rp || !fwdForm.remoteHost) return;
+    const fwd: DefaultForward = { direction: fwdDir, localPort: lp, remoteHost: fwdForm.remoteHost, remotePort: rp };
+    setForm({ ...form, defaultForwards: [...(form.defaultForwards || []), fwd] });
+    setFwdForm({ localPort: "", remoteHost: "127.0.0.1", remotePort: "" });
+  };
+
+  const handleDeleteForward = (idx: number) => {
+    setForm({ ...form, defaultForwards: (form.defaultForwards || []).filter((_, i) => i !== idx) });
+  };
 
   const handleSave = () => {
     if (!form.name || !form.host) return;
@@ -142,6 +162,7 @@ export function ServerDialog({ open, onClose, editServer }: ServerDialogProps) {
         <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ mb: 2, borderBottom: 1, borderColor: "divider" }}>
           <Tab icon={<LockRounded fontSize="small" />} iconPosition="start" label="Connection" />
           <Tab icon={<DescriptionRounded fontSize="small" />} iconPosition="start" label="Details" />
+          <Tab icon={<AltRouteRounded fontSize="small" />} iconPosition="start" label="Forwarding" />
         </Tabs>
 
         {tab === 0 && (
@@ -320,6 +341,108 @@ export function ServerDialog({ open, onClose, editServer }: ServerDialogProps) {
                   ? ` -i ${form.privateKeyPath}`
                   : ""}
               </Typography>
+            </Box>
+          </Stack>
+        )}
+
+        {tab === 2 && (
+          <Stack spacing={2} sx={{ mt: 1 }}>
+            <Typography variant="body2" color="text.secondary">
+              Default port forwards are automatically applied when you connect to this server.
+            </Typography>
+
+            {/* Direction toggle */}
+            <ToggleButtonGroup
+              value={fwdDir}
+              exclusive
+              onChange={(_, v) => v && setFwdDir(v)}
+              size="small"
+              fullWidth
+            >
+              <ToggleButton value="local">
+                <AltRouteRounded fontSize="small" sx={{ mr: 0.5 }} /> Local → Remote
+              </ToggleButton>
+              <ToggleButton value="remote">
+                <AltRouteRounded fontSize="small" sx={{ mr: 0.5 }} /> Remote → Local
+              </ToggleButton>
+            </ToggleButtonGroup>
+
+            {/* Add form */}
+            <Box sx={{ display: "flex", gap: 1, alignItems: "flex-start" }}>
+              <TextField
+                size="small"
+                label="Local Port"
+                type="number"
+                value={fwdForm.localPort}
+                onChange={(e) => setFwdForm({ ...fwdForm, localPort: e.target.value })}
+                sx={{ flex: 1 }}
+              />
+              <TextField
+                size="small"
+                label="Remote Host"
+                value={fwdForm.remoteHost}
+                onChange={(e) => setFwdForm({ ...fwdForm, remoteHost: e.target.value })}
+                sx={{ flex: 1 }}
+              />
+              <TextField
+                size="small"
+                label="Remote Port"
+                type="number"
+                value={fwdForm.remotePort}
+                onChange={(e) => setFwdForm({ ...fwdForm, remotePort: e.target.value })}
+                sx={{ flex: 1 }}
+              />
+              <Button
+                onClick={handleAddForward}
+                variant="outlined"
+                size="small"
+                disabled={!fwdForm.localPort || !fwdForm.remotePort}
+                startIcon={<AddRounded />}
+                sx={{ whiteSpace: "nowrap" }}
+              >
+                Add
+              </Button>
+            </Box>
+
+            {/* List */}
+            <Box>
+              {form.defaultForwards && form.defaultForwards.length > 0 ? (
+                <Stack spacing={1}>
+                  {form.defaultForwards.map((fwd, idx) => (
+                    <Box
+                      key={idx}
+                      sx={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 1,
+                        p: 1,
+                        borderRadius: 1,
+                        border: 1,
+                        borderColor: "divider",
+                      }}
+                    >
+                      <Chip
+                        label={fwd.direction === "remote" ? "R → L" : "L → R"}
+                        size="small"
+                        color={fwd.direction === "remote" ? "warning" : "info"}
+                        sx={{ fontSize: 10, height: 20 }}
+                      />
+                      <Typography variant="body2" sx={{ fontFamily: "monospace", flex: 1 }}>
+                        {fwd.direction === "remote"
+                          ? `${fwd.remoteHost}:${fwd.remotePort} → :${fwd.localPort}`
+                          : `:${fwd.localPort} → ${fwd.remoteHost}:${fwd.remotePort}`}
+                      </Typography>
+                      <IconButton size="small" color="error" onClick={() => handleDeleteForward(idx)}>
+                        <DeleteRounded fontSize="small" />
+                      </IconButton>
+                    </Box>
+                  ))}
+                </Stack>
+              ) : (
+                <Typography variant="caption" color="text.secondary" sx={{ fontStyle: "italic" }}>
+                  No default port forwards configured.
+                </Typography>
+              )}
             </Box>
           </Stack>
         )}

@@ -22,6 +22,8 @@ import {
   DownloadRounded,
   PowerSettingsNewRounded,
   PaletteRounded,
+  AltRouteRounded,
+  AutoAwesomeRounded,
   CloseRounded,
   KeyboardCommandKeyRounded,
 } from "@mui/icons-material";
@@ -44,10 +46,12 @@ interface CommandPaletteProps {
   onClose: () => void;
   onToggleFiles: () => void;
   onToggleStats: () => void;
+  onToggleForward: () => void;
+  onToggleAI: () => void;
   onAddServer: () => void;
 }
 
-export function CommandPalette({ open, onClose, onToggleFiles, onToggleStats, onAddServer }: CommandPaletteProps) {
+export function CommandPalette({ open, onClose, onToggleFiles, onToggleStats, onToggleForward, onToggleAI, onAddServer }: CommandPaletteProps) {
   const [query, setQuery] = useState("");
   const [selectedIdx, setSelectedIdx] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -81,12 +85,15 @@ export function CommandPalette({ open, onClose, onToggleFiles, onToggleStats, on
     const toolActions: PaletteAction[] = [
       { id: "toggle-files", label: "Toggle SFTP File Browser", icon: <FolderRounded />, group: "Tools", keywords: "sftp file upload download", perform: onToggleFiles },
       { id: "toggle-stats", label: "Toggle Server Monitor", icon: <PaletteRounded />, group: "Tools", keywords: "cpu memory monitor stats", perform: onToggleStats },
+      { id: "toggle-forward", label: "Toggle Port Forward", icon: <AltRouteRounded />, group: "Tools", keywords: "port forward tunnel proxy", perform: onToggleForward },
+      { id: "toggle-ai", label: "Toggle AI Assistant", icon: <AutoAwesomeRounded />, group: "Tools", keywords: "ai assistant chat help", perform: onToggleAI },
       { id: "add-server", label: "Add New Server", icon: <AddRounded />, group: "Tools", keywords: "create new server", perform: onAddServer },
       { id: "export-json", label: "Export Config (JSON)", icon: <DownloadRounded />, group: "Tools", keywords: "export backup json", perform: () => { setView("settings"); } },
       { id: "export-ssh", label: "Export SSH Config", icon: <DownloadRounded />, group: "Tools", keywords: "export ssh config openssh", perform: () => { setView("settings"); } },
     ];
 
     const themeActions: PaletteAction[] = [
+      "warp-dark", "warp-light", "warp-vintage",
       "github-dark", "dracula", "one-dark", "monokai", "nord", "tokyo-night", "catppuccin-mocha", "light-clean", "solarized-light",
     ].map((id) => ({
       id: `theme-${id}`,
@@ -98,7 +105,7 @@ export function CommandPalette({ open, onClose, onToggleFiles, onToggleStats, on
     }));
 
     return [...serverActions, ...navActions, ...toolActions, ...themeActions];
-  }, [servers, sessions, setView, openSession, onToggleFiles, onToggleStats, onAddServer, updateSettings]);
+  }, [servers, sessions, setView, openSession, onToggleFiles, onToggleStats, onToggleForward, onToggleAI, onAddServer, updateSettings]);
 
   const filtered = useMemo(() => {
     if (!query.trim()) return actions;

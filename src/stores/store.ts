@@ -10,7 +10,9 @@ import type {
   TerminalSession,
   ViewType,
   AiConfig,
+  CommandBlock,
 } from "../types";
+import { generateId } from "../utils/id";
 
 interface AppStore {
   view: ViewType;
@@ -27,8 +29,11 @@ interface AppStore {
     fontSize: number;
     scrollback: number;
     themeId: string;
+    windowWidth: number;
+    windowHeight: number;
   };
   ai: AiConfig;
+  commandBlocks: CommandBlock[];
 
   setView: (view: ViewType) => void;
   addServer: (server: ServerAsset) => void;
@@ -55,6 +60,8 @@ interface AppStore {
   updateSettings: (updates: Partial<AppStore["settings"]>) => void;
   updateAi: (updates: Partial<AiConfig>) => void;
   getServerById: (id: string) => ServerAsset | undefined;
+  addCommandBlock: (block: CommandBlock) => void;
+  clearCommandBlocks: (sessionId?: string) => void;
   exportConfig: () => string;
   exportSshConfig: () => string;
   setConfigFilePath: (path: string | null) => void;
@@ -126,6 +133,8 @@ export const useStore = create<AppStore>()(
         fontSize: 14,
         scrollback: 5000,
         themeId: "github-dark",
+        windowWidth: 1200,
+        windowHeight: 800,
       },
       ai: {
         provider: "openai",
@@ -133,6 +142,7 @@ export const useStore = create<AppStore>()(
         baseUrl: "",
         model: "",
       },
+      commandBlocks: [],
 
       setView: (view) => set({ view }),
 
@@ -211,10 +221,27 @@ export const useStore = create<AppStore>()(
           host: server.host,
           status: "connecting",
         };
+
+        // Auto-create port forward rules from server defaults
+        const defaultFwds = server.defaultForwards || [];
+        const newForwards: PortForward[] = defaultFwds.map((df) => ({
+          id: generateId("pf"),
+          name: `${df.remoteHost}:${df.remotePort}`,
+          sessionId,
+          serverName: server.name,
+          direction: df.direction,
+          localHost: "127.0.0.1",
+          localPort: df.localPort,
+          remoteHost: df.remoteHost,
+          remotePort: df.remotePort,
+          enabled: true,
+        }));
+
         set((s) => ({
           sessions: [...s.sessions, session],
           activeSessionId: sessionId,
           view: "terminal",
+          portForwards: newForwards.length > 0 ? [...s.portForwards, ...newForwards] : s.portForwards,
         }));
       },
 
@@ -246,6 +273,18 @@ export const useStore = create<AppStore>()(
         set((s) => ({ ai: { ...s.ai, ...updates } })),
 
       getServerById: (id) => get().servers.find((s) => s.id === id),
+
+      addCommandBlock: (block) =>
+        set((s) => ({
+          commandBlocks: [...s.commandBlocks, block].slice(-200),
+        })),
+
+      clearCommandBlocks: (sessionId) =>
+        set((s) => ({
+          commandBlocks: sessionId
+            ? s.commandBlocks.filter((b) => b.sessionId !== sessionId)
+            : [],
+        })),
 
       exportConfig: () => {
         const state = get();
